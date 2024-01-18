@@ -100,7 +100,7 @@ function error() {
 	fi
 }
 
-usage() {
+function usage() {
 	echo -e
 	echo -e "rsync backup"
 	echo -e
