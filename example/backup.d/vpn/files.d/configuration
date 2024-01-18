@@ -1,0 +1,6 @@
+exclude=foo
+include=*.sh
+include=*.md
+include=**/files.d/**
+exclude=bar
+path=/etc/vpn

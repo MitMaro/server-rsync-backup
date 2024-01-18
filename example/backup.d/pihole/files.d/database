@@ -1,0 +1,4 @@
+path=/database
+exclude=**/*.db
+include=**/*.log
+exclude=error.log

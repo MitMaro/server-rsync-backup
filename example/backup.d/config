@@ -1,0 +1,8 @@
+target=./backup-dir
+ident_file=/home/user/.ssh/private-key
+verbose=false
+dry_run=false
+log_to_file=false
+log_file_root=./backup-logs
+log_file_date_format=+%Y--%m--%d
+log_color=true

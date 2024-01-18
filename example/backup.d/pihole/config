@@ -1,0 +1,3 @@
+remote_host=10.0.0.10
+id=pihole
+remote_user=user
