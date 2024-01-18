@@ -184,12 +184,14 @@ function read_script_config() {
 
 	# read config variables
 	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" == "" ]]; then
+			contine
 		# line must have a `=`
-		if [[ "$line" == \#* ]]; then
+		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
 			continue
 		elif ! echo "$line" | grep -F '=' &> /dev/null; then
-			warning "Invalid line in $(highlight "${id}"): $line"
+			warning "Invalid line in $(highlight "${config_path}"): $line"
 			continue
 		fi
 		name="$(echo "$line" | cut -d '=' -f 1)"
@@ -252,8 +254,10 @@ function read_id_config() {
 
 	# read config variables
 	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" == "" ]]; then
+			contine
 		# line must have a `=`
-		if [[ "$line" == \#* ]]; then
+		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
 			continue
 		elif ! echo "$line" | grep -F '=' &> /dev/null; then
@@ -287,8 +291,10 @@ function read_files_config() {
 
 	# shellcheck disable=SC2094
 	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" == "" ]]; then
+			contine
 		# line must have a `=`
-		if [[ "$line" == \#* ]]; then
+		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
 			continue
 		elif ! echo "$line" | grep -F '=' &> /dev/null; then
@@ -442,7 +448,6 @@ function main() {
 	if [[ "${script_config[dry_run]}" == "true" ]]; then
 		rsync_dry_run=(--dry-run --itemize-changes)
 	fi
-
 
 	for config_path in "${script_config[config_root]}"/*; do
 		if [[ "$config_path" == "$script_config_path" ]]; then
