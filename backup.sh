@@ -24,11 +24,13 @@ declare -A script_config=(
 )
 declare -A config
 declare -a rsync_arguments
+declare rsync_remote_path
+declare rsync_target
 declare -a rsync_dry_run=()
 declare -a rsync_verbose=()
 declare -a rsync_log_file=()
-declare rsync_remote_path
-declare rsync_target
+declare -a ssh_port=( )
+declare -a ssh_ident=( )
 
 function reset_colors() {
 	declare -g C_RESET=''
@@ -151,7 +153,41 @@ function validate_integer() {
 	local value="$1"
 	shift
 
+	if [[ -z "$value" ]]; then
+		return 0
+	fi
+
 	if ! [[ "$value" =~ ^[0-9]+$ ]] ; then
+		error "$validation_message" ${EXIT_CODE_INVALID_ARGUMENT}
+	fi
+}
+
+function validate_file_exists() {
+	local validation_message="$1"
+	shift
+	local value="$1"
+	shift
+
+	if [[ -z "$value" ]]; then
+		return 0
+	fi
+
+	if ! [[ -f "$value" ]] ; then
+		error "$validation_message" ${EXIT_CODE_INVALID_ARGUMENT}
+	fi
+}
+
+function validate_directory_exists() {
+	local validation_message="$1"
+	shift
+	local value="$1"
+	shift
+
+	if [[ -z "$value" ]]; then
+		return 0
+	fi
+
+	if ! [[ -d "$value" ]] ; then
 		error "$validation_message" ${EXIT_CODE_INVALID_ARGUMENT}
 	fi
 }
@@ -232,8 +268,11 @@ function read_script_config() {
 	fi
 
 	validate_required "$(highlight "$config_path") missing $(highlight target)" "${script_config[target]}"
+	validate_directory_exists "$(highlight "$config_path") has invalid path for $(highlight target)" "${script_config[target]}"
 	validate_required "$(highlight "$config_path") missing $(highlight ident_file)" "${script_config[ident_file]}"
+	validate_file_exists "$(highlight "$config_path") has invalid path for $(highlight ident_file)" "${script_config[ident_file]}"
 	validate_required "$(highlight "$config_path") missing $(highlight log_file_root)" "${script_config[log_file_root]}"
+	validate_directory_exists "$(highlight "$config_path") has invalid path for $(highlight log_file_root)" "${script_config[log_file_root]}"
 	validate_required "$(highlight "$config_path") missing $(highlight log_file_date_format)" "${script_config[log_file_date_format]}"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight verbose)" "${script_config[verbose]}" "true" "false"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight dry_run)" "${script_config[dry_run]}" "true" "false"
@@ -256,6 +295,7 @@ function read_id_config() {
 	config=(
 		[id]="$id"
 		[skip]="false"
+		[remote_script]=""
 		[remote_user]="root"
 		[remote_host]=""
 		[remote_port]=""
@@ -268,6 +308,7 @@ function read_id_config() {
 		error "No config found for $id" ${EXIT_CODE_INVALID_STATE}
 	fi
 
+	# shellcheck disable=SC2094
 	# read config variables
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		if [[ "$line" == "" ]]; then
@@ -287,10 +328,10 @@ function read_id_config() {
 	validate_required "$(highlight "$config_path") has invalid $(highlight id)" "${config[id]}"
 	validate_required "$(highlight "$config_path") has invalid $(highlight remote_user)" "${config[remote_user]}"
 	validate_required "$(highlight "$config_path") missing $(highlight remote_host)" "${config[remote_host]}"
-	if [[ -n "${config[remote_port]}" ]]; then
-		validate_integer "$(highlight "$config_path") has $(highlight remote_port) with a non-integer value " "${config[remote_port]}"
-	fi
+	validate_integer "$(highlight "$config_path") has $(highlight remote_port) with a non-integer value " "${config[remote_port]}"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight skip)" "${config[skip]}" "true" "false"
+	validate_file_exists "$(highlight "$config_path") has invalid path for $(highlight remote_script)" "${config[remote_script]}"
+	validate_file_exists "$(highlight "$config_path") has invalid path for $(highlight ident_file)" "${config[ident_file]}"
 }
 
 function read_files_config() {
@@ -379,6 +420,7 @@ function parse_args() {
 				if [[ -n "${script_config[config_root]}" ]]; then
 					error "Multiple config paths provided" ${EXIT_CODE_INVALID_ARGUMENT}
 				fi
+				validate_directory_exists "Invalid config path provided" "$1"
 				script_config[config_root]="$(strip_slash "$1")"
 				;;
 		esac
@@ -388,11 +430,7 @@ function parse_args() {
 	validate_required "No config path provided" "${script_config[config_root]}"
 }
 
-function sync() {
-	declare -a ssh_port=( )
-	declare -a ssh_ident=( )
-	declare -a ssh_verbose=( )
-
+function set_and_check_ssh_connection() {
 	if [[ -n "${config[remote_port]}" ]]; then
 		ssh_port=( -p "${config[remote_port]}" )
 	fi
@@ -403,11 +441,6 @@ function sync() {
 		ssh_ident=( -i "${script_config[ident_file]}" )
 	fi
 
-	if [[ "${script_config[verbose]}" == "true" ]]; then
-		ssh_verbose=( -vvv )
-	fi
-
-	# Create the connection string.
 	local ssh_connect="${config[remote_user]}@${config[remote_host]}"
 
 	verbose_message "Checking SSH connection"
@@ -416,13 +449,34 @@ function sync() {
 		-o 'BatchMode=yes' \
 		-o 'ConnectTimeout 10' \
 		-o 'StrictHostKeyChecking=accept-new' \
-		"${ssh_verbose[@]}" \
 		"${ssh_ident[@]}" \
 		"${ssh_port[@]}" \
 		"${ssh_connect}" \
 		exit \
 	> /dev/null || error "SSH connection to $(highlight "$ssh_connect") failed."
+}
 
+function run_remote_script() {
+	local remote_script_path="$1"
+	if [[ -n "$remote_script_path" ]]; then
+		local ssh_connect="${config[remote_user]}@${config[remote_host]}"
+
+		verbose_message "Running remote script: $(highlight "$remote_script_path")"
+		message "$(\
+			ssh \
+			-q \
+			-o 'BatchMode=yes' \
+			-o 'ConnectTimeout 10' \
+			"${ssh_ident[@]}" \
+			"${ssh_port[@]}" \
+			"${ssh_connect}" \
+			'bash -s' < "$remote_script_path" \
+		)" || error "SSH connection to $(highlight "$ssh_connect") failed to run remote script."
+	fi
+}
+
+function sync() {
+	local ssh_connect="${config[remote_user]}@${config[remote_host]}"
 	local rsync_ssh_command=( ssh "${ssh_ident[@]}" "${ssh_port[@]}" )
 
 	local target="${script_config[target]}/${config[id]}"
@@ -465,12 +519,12 @@ function main() {
 		touch "${script_config[log_file_path]}" || error "Error creating ${script_config[log_file_path]}"
 	fi
 
-	if [[ "${script_config[verbose]}" == "true" ]]; then
-		rsync_dry_run=(--verbose )
+	if [[ "${script_config[log_color]}" == "false" ]]; then
+		reset_colors
 	fi
 
-	if [[ ! -d "${script_config[target]}" ]]; then
-		error "The target directory $(highlight "${script_config[target]}") does not exist or is not a directory" ${EXIT_CODE_INVALID_STATE}
+	if [[ "${script_config[verbose]}" == "true" ]]; then
+		rsync_dry_run=(--verbose )
 	fi
 
 	if [[ "${script_config[dry_run]}" == "true" ]]; then
@@ -489,6 +543,10 @@ function main() {
 			continue
 		fi
 
+		set_and_check_ssh_connection
+
+		run_remote_script "${config[remote_script]}"
+
 		# sync common files
 		if [[ -e "$shard_paths_root" ]]; then
 			for pattern_path in "$shard_paths_root"/*; do
@@ -496,7 +554,6 @@ function main() {
 				sync
 			done
 		fi
-
 
 		if [[ -e "$config_path/files.d/" ]]; then
 			for pattern_path in "$config_path"/files.d/*; do
