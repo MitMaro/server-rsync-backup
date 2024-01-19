@@ -290,7 +290,7 @@ function read_id_config() {
 	local config_path="$1/config"
 	local id
 	local name
-	id="$(basename "$config_path")"
+	id="$(basename "$1")"
 
 	config=(
 		[id]="$id"
@@ -479,7 +479,7 @@ function sync() {
 	local ssh_connect="${config[remote_user]}@${config[remote_host]}"
 	local rsync_ssh_command=( ssh "${ssh_ident[@]}" "${ssh_port[@]}" )
 
-	local target="${script_config[target]}/${config[id]}"
+	local target="${script_config[target]}/${config[id]}/${rsync_target}"
 	mkdir -p "$target" || error "Error creating ${script_config[log_file_root]}"
 
 	# shellcheck disable=SC2124
@@ -500,7 +500,7 @@ function sync() {
 		--rsh="$rsh_args"\
 		"${rsync_arguments[@]}" \
 		"$ssh_connect:$rsync_remote_path" \
-		"$target/$rsync_target/"
+		"$target"
 }
 
 function main() {
@@ -536,7 +536,6 @@ function main() {
 			continue
 		fi
 
-		echo "$config_path"
 		read_id_config "$config_path"
 
 		if [[ "${config[skip]}" == "true" ]]; then
