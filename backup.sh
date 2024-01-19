@@ -273,7 +273,7 @@ function read_id_config() {
 			verbose_message "Skipping: $line"
 			continue
 		elif ! echo "$line" | grep -F '=' &> /dev/null; then
-			warning "Invalid line in ${id}: $line"
+			warning "Invalid line in $(highlight "$config_path"): $line"
 			continue
 		fi
 		name="$(echo "$line" | cut -d '=' -f 1)"
