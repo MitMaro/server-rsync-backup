@@ -497,10 +497,13 @@ function main() {
 			done
 		fi
 
-		for pattern_path in "$config_path"/files.d/*; do
-			read_files_config "${config[id]}" "$pattern_path"
-			sync
-		done
+
+		if [[ -e "$config_path/files.d/" ]]; then
+			for pattern_path in "$config_path"/files.d/*; do
+				read_files_config "${config[id]}" "$pattern_path"
+				sync
+			done
+		fi
 	done
 }
 
