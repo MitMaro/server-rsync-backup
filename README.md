@@ -42,6 +42,7 @@ Inside this directory, the primary configuration file, called `config` contains 
 | ident_file           |                        | No       | The SSH private key to use for SSH connections. Default to no explict key.                                       |
 | verbose              | false                  | No       | Set to true to enable verbose logging, false to disable                                                          |
 | dry_run              | false                  | No       | Do not sync any files. Note some actions are still performed, like creating log directories                      |
+| relative             | true                   | No       | Use the --relative option with rsync, to preserve paths                                                          |
 | log_color            |                        | No       | Set to false to disable logging with colors, true to enable. Defaults to false for file logging, true for stdout |
 | log_to_file          | false                  | No       | Log to a file instead of stdout                                                                                  |
 | log_file_root        | /var/logs/rsync-backup | No       | The directory to store log files                                                                                 |

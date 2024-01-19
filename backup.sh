@@ -15,6 +15,7 @@ declare -A script_config=(
 	[ident_file]=""
 	[verbose]=null
 	[dry_run]=null
+	[relative]=true
 	[log_color]=null
 	[log_to_file]=false
 	[log_file_root]="/var/logs/rsync-backup"
@@ -29,6 +30,7 @@ declare rsync_remote_path
 declare rsync_target
 declare -a rsync_dry_run=()
 declare -a rsync_verbose=()
+declare -a rsync_relative=()
 declare -a rsync_log_file=()
 declare -a ssh_port=( )
 declare -a ssh_ident=( )
@@ -278,6 +280,7 @@ function read_script_config() {
 	validate_directory_exists "$(highlight "$config_path") has invalid path for $(highlight log_file_root)" "${script_config[log_file_root]}"
 	validate_required "$(highlight "$config_path") missing $(highlight log_file_date_format)" "${script_config[log_file_date_format]}"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight verbose)" "${script_config[verbose]}" "true" "false"
+	validate_value_in "$(highlight "$config_path") invalid value for $(highlight relative)" "${script_config[relative]}" "true" "false"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight dry_run)" "${script_config[dry_run]}" "true" "false"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight log_to_file)" "${script_config[log_to_file]}" "true" "false"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight log_color)" "${script_config[log_color]}" "true" "false"
@@ -498,6 +501,7 @@ function sync() {
 	rsync \
 		"${rsync_dry_run[@]}" \
 		"${rsync_verbose[@]}" \
+		"${rsync_relative[@]}" \
 		"${rsync_log_file[@]}" \
 		--copy-links \
 		--copy-dirlinks \
@@ -534,11 +538,15 @@ function main() {
 	fi
 
 	if [[ "${script_config[verbose]}" == "true" ]]; then
-		rsync_dry_run=(--verbose )
+		rsync_verbose=(--verbose )
 	fi
 
 	if [[ "${script_config[dry_run]}" == "true" ]]; then
 		rsync_dry_run=(--dry-run --itemize-changes)
+	fi
+
+	if [[ "${script_config[relative]}" == "true" ]]; then
+		rsync_relative=(--relative)
 	fi
 
 	declare -a paths
