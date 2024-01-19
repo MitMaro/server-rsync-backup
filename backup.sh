@@ -187,6 +187,8 @@ function read_script_config() {
 	local name
 	local config_path="$1"
 
+	verbose_message "Reading: $(highlight "$config_path")"
+
 	if [[ ! -f "$config_path" ]]; then
 		error "Invalid config path: $(highlight "$config_path")" ${EXIT_CODE_INVALID_ARGUMENT}
 	fi
@@ -194,7 +196,7 @@ function read_script_config() {
 	# read config variables
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		if [[ "$line" == "" ]]; then
-			contine
+			continue
 		# line must have a `=`
 		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
@@ -260,6 +262,8 @@ function read_id_config() {
 		[ident_file]=""
 	)
 
+	verbose_message "Reading: $(highlight "$config_path")"
+
 	if [[ ! -f "$config_path" ]]; then
 		error "No config found for $id" ${EXIT_CODE_INVALID_STATE}
 	fi
@@ -267,7 +271,7 @@ function read_id_config() {
 	# read config variables
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		if [[ "$line" == "" ]]; then
-			contine
+			continue
 		# line must have a `=`
 		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
@@ -298,6 +302,8 @@ function read_files_config() {
 	rsync_remote_path=""
 	rsync_target=""
 
+	verbose_message "Reading: $(highlight "$config_path")"
+
 	if [[ ! -f "$config_path" ]]; then
 		error "No paths found for $(highlight "$id")" ${EXIT_CODE_INVALID_STATE}
 	fi
@@ -305,7 +311,7 @@ function read_files_config() {
 	# shellcheck disable=SC2094
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		if [[ "$line" == "" ]]; then
-			contine
+			continue
 		# line must have a `=`
 		elif [[ "$line" == \#* ]]; then
 			verbose_message "Skipping: $line"
@@ -409,12 +415,13 @@ function sync() {
 		-q \
 		-o 'BatchMode=yes' \
 		-o 'ConnectTimeout 10' \
+		-o 'StrictHostKeyChecking=accept-new' \
 		"${ssh_verbose[@]}" \
 		"${ssh_ident[@]}" \
 		"${ssh_port[@]}" \
 		"${ssh_connect}" \
 		exit \
-	> /dev/null || error "SSH connection to $(highlight "$ssh_connect")' failed."
+	> /dev/null || error "SSH connection to $(highlight "$ssh_connect") failed."
 
 	local rsync_ssh_command=( ssh "${ssh_ident[@]}" "${ssh_port[@]}" )
 
