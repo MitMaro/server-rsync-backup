@@ -61,20 +61,26 @@ The config file supports the following:
 
 Inside each batch, a directory called `files.d` contains config files that describe the files to back up. The config file contains:
 
-
-| name    | required | description                               |
-|---------|----------|-------------------------------------------|
-| path    | Yes      | The remote path to backup                 |
-| exclude | No       | A pattern to pass rsync as an `--exclude` |
-| include | No       | A pattern to pass rsync as an `--include` |
+| name          | Default | required | description                               |
+|---------------|---------|----------|-------------------------------------------|
+| path          |         | Yes      | The remote path to backup                 |
+| target        |         | No       | Target path relative to root target       |
+| allow_missing | false   | No       | Do not error if path is missing on remote |
+| exclude       |         | No       | A pattern to pass rsync as an `--exclude` |
+| include       |         | No       | A pattern to pass rsync as an `--include` |
 
 The `include` and `exclude` configurations can be provided multiple times, are are passed to `rsync` in the order provided in the file.
+
+The root configuration directory can also contain a `files.d` directory, in which case, these files are backed up for all batches.
 
 #### Example Directory
 
 ```
 backup.d
 ├── config
+└── files.d
+│   ├── readme
+│   └── ssh-config
 ├── pihole
 │   ├── config
 │   └── files.d

@@ -28,6 +28,7 @@ declare -a rsync_dry_run=()
 declare -a rsync_verbose=()
 declare -a rsync_log_file=()
 declare rsync_remote_path
+declare rsync_target
 
 function reset_colors() {
 	declare -g C_RESET=''
@@ -53,7 +54,7 @@ function check_colors() {
 	fi
 }
 
-highlight() {
+function highlight() {
 	if [[ -z "$C_HIGHLIGHT" ]]; then
 		echo "\`$*\`"
 	else
@@ -115,6 +116,14 @@ function usage() {
 	echo -e
 	echo -e "  $(highlight "--help")            Show this usage message and exit."
 	echo -e
+}
+
+function strip_slash() {
+	if [[ "$1" == "/" ]]; then
+		echo "$1"
+	else
+		echo "${1%/}"
+	fi
 }
 
 function join_by {
@@ -229,8 +238,11 @@ function read_script_config() {
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight log_to_file)" "${script_config[log_to_file]}" "true" "false"
 	validate_value_in "$(highlight "$config_path") invalid value for $(highlight log_color)" "${script_config[log_color]}" "true" "false"
 
+	script_config[target]="$(strip_slash "${script_config[target]}")"
+	script_config[log_file_root]="$(strip_slash "${script_config[log_file_root]}")"
+
 	script_config[log_file_date]="$(date "${script_config[log_file_date_format]}")"
-	script_config[log_file_path]="${script_config[log_file_path]}/backup-${script_config[log_file_date]}.log"
+	script_config[log_file_path]="${script_config[log_file_root]}/backup-${script_config[log_file_date]}.log"
 }
 
 function read_id_config() {
@@ -284,6 +296,7 @@ function read_files_config() {
 	local config_path="$2"
 	rsync_arguments=()
 	rsync_remote_path=""
+	rsync_target=""
 
 	if [[ ! -f "$config_path" ]]; then
 		error "No paths found for $(highlight "$id")" ${EXIT_CODE_INVALID_STATE}
@@ -298,7 +311,7 @@ function read_files_config() {
 			verbose_message "Skipping: $line"
 			continue
 		elif ! echo "$line" | grep -F '=' &> /dev/null; then
-			warning "Invalid line in $(highlight "$id"): $line"
+			warning "Invalid line in $(highlight "$config_path"): $line"
 			continue
 		fi
 
@@ -310,7 +323,7 @@ function read_files_config() {
 				if [[ -n "$rsync_remote_path" ]]; then
 					warning "$(highlight "$config_path") has duplicate $(highlight path)s"
 				fi
-				rsync_remote_path="$value"
+				rsync_remote_path="$(strip_slash "$value")"
 				;;
 			"include")
 				validate_required "$(highlight "$config_path") has invalid $(highlight include)" "$value"
@@ -320,8 +333,15 @@ function read_files_config() {
 				validate_required "$(highlight "$config_path") has invalid $(highlight exclude)" "$value"
 				rsync_arguments+=( --exclude="$value" )
 				;;
+			"target")
+				rsync_target="$(strip_slash "$value")"
+				;;
+			"allow_missing")
+				validate_value_in "$(highlight "$config_path") invalid value for $(highlight allow_missing)" "$value" "true" "false"
+				rsync_arguments+=( --ignore-missing-args )
+				;;
 			*)
-				warning "Invalid line in $(highlight "$id"): $line"
+				warning "Invalid line in $(highlight "$config_path"): $line"
 				;;
 		esac
 	done < "$config_path"
@@ -353,7 +373,7 @@ function parse_args() {
 				if [[ -n "${script_config[config_root]}" ]]; then
 					error "Multiple config paths provided" ${EXIT_CODE_INVALID_ARGUMENT}
 				fi
-				script_config[config_root]="$1"
+				script_config[config_root]="$(strip_slash "$1")"
 				;;
 		esac
 		shift
@@ -419,7 +439,7 @@ function sync() {
 		--rsh="$rsh_args"\
 		"${rsync_arguments[@]}" \
 		"$ssh_connect:$rsync_remote_path" \
-		"$target"
+		"$target/$rsync_target/"
 }
 
 function main() {
@@ -429,6 +449,7 @@ function main() {
 	validate_requirements
 
 	local script_config_path="${script_config[config_root]}/config"
+	local shard_paths_root="${script_config[config_root]}/files.d"
 
 	read_script_config "$script_config_path"
 
@@ -450,14 +471,23 @@ function main() {
 	fi
 
 	for config_path in "${script_config[config_root]}"/*; do
-		if [[ "$config_path" == "$script_config_path" ]]; then
+		if [[ "$config_path" == "$script_config_path" || "$config_path" == "$shard_paths_root" ]]; then
 			continue
 		fi
 
+		echo "$config_path"
 		read_id_config "$config_path"
 
 		if [[ "${config[skip]}" == "true" ]]; then
 			continue
+		fi
+
+		# sync common files
+		if [[ -e "$shard_paths_root" ]]; then
+			for pattern_path in "$shard_paths_root"/*; do
+				read_files_config "${config[id]}" "$pattern_path"
+				sync
+			done
 		fi
 
 		for pattern_path in "$config_path"/files.d/*; do
