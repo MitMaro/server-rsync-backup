@@ -10,6 +10,7 @@ declare -r EXIT_CODE_INVALID_ARGUMENT=3
 declare -r EXIT_CODE_INVALID_STATE=2
 declare -r PRINT_USAGE=true
 declare -A script_config=(
+	[filter_id]=""
 	[target]=""
 	[ident_file]=""
 	[verbose]=null
@@ -110,6 +111,8 @@ function usage() {
 	echo -e "Usage: ${self} [options] <path-to-config-root>"
 	echo -e
 	echo -e "Options:"
+	echo -e "  $(highlight "--id <id>")         Only sync files for provided id."
+	echo -e
 	echo -e "  $(highlight "--verbose, -v")     Show more verbose output of actions performed."
 	echo -e
 	echo -e "  $(highlight "--no-color")        Disable colored output."
@@ -397,8 +400,15 @@ function read_files_config() {
 }
 
 function parse_args() {
+	local value
 	while (($#)); do
 		case "$1" in
+			--id)
+				shift
+				value="${1:-}"
+				validate_required "Value missing from $(highlight --id) argument" "$value" ${PRINT_USAGE}
+				script_config[filter_id]="$value"
+				;;
 			-v|--verbose)
 				script_config[verbose]=true
 				;;
@@ -531,7 +541,14 @@ function main() {
 		rsync_dry_run=(--dry-run --itemize-changes)
 	fi
 
-	for config_path in "${script_config[config_root]}"/*; do
+	declare -a paths
+	if [[ -z "${script_config[filter_id]}" ]]; then
+		paths=("${script_config[config_root]}"/*)
+	else
+		paths=("${script_config[config_root]}/${script_config[filter_id]}")
+	fi
+
+	for config_path in ${paths[*]}; do
 		if [[ "$config_path" == "$script_config_path" || "$config_path" == "$shard_paths_root" ]]; then
 			continue
 		fi

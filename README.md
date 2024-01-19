@@ -107,6 +107,8 @@ server rsync backup
 Usage: backup.sh [options] <path-to-config-root>
 
 Options:
+  --id <id>         Only sync files for provided id.
+
   --verbose, -v     Show more verbose output of actions performed.
 
   --no-color        Disable colored output.
