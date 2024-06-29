@@ -31,7 +31,8 @@ declare rsync_target
 declare -a rsync_dry_run=()
 declare -a rsync_verbose=()
 declare -a rsync_relative=()
-declare -a rsync_log_file=()
+# show progress by default when not logging
+declare -a rsync_log_file=(--progress)
 declare -a ssh_port=( )
 declare -a ssh_ident=( )
 
@@ -505,7 +506,6 @@ function sync() {
 		"${rsync_log_file[@]}" \
 		--copy-links \
 		--copy-dirlinks \
-		--progress \
 		--archive \
 		--compress \
 		--human-readable \
@@ -531,6 +531,7 @@ function main() {
 	if [[ "${script_config[log_to_file]}" == "true" ]]; then
 		mkdir -p "${script_config[log_file_root]}" || error "Error creating ${script_config[log_file_root]}"
 		touch "${script_config[log_file_path]}" || error "Error creating ${script_config[log_file_path]}"
+		rsync_log_file=(--log-file="${script_config[log_file_path]}")
 	fi
 
 	if [[ "${script_config[log_color]}" == "false" ]]; then
