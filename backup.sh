@@ -476,16 +476,26 @@ function run_remote_script() {
 		local ssh_connect="${config[remote_user]}@${config[remote_host]}"
 
 		verbose_message "Running remote script: $(highlight "$remote_script_path")"
-		message "$(\
+		set +e
+		remote_script_out="$(\
 			ssh \
-			-q \
-			-o 'BatchMode=yes' \
-			-o 'ConnectTimeout 10' \
-			"${ssh_ident[@]}" \
-			"${ssh_port[@]}" \
-			"${ssh_connect}" \
-			'bash -s' < "$remote_script_path" \
-		)" || error "SSH connection to $(highlight "$ssh_connect") failed to run remote script."
+				-q \
+				-o 'BatchMode=yes' \
+				-o 'ConnectTimeout 10' \
+				"${ssh_ident[@]}" \
+				"${ssh_port[@]}" \
+				"${ssh_connect}" \
+				'bash -s' 2>&1 < "$remote_script_path"\
+		)"
+		status=$?
+		set -e
+		if [[ -n $status ]]; then
+			warning "SSH connection to $(highlight "$ssh_connect") failed to run remote script."
+			message "Script Out: $remote_script_out"
+			exit $status
+		fi
+
+		verbose_message "Remote script complete"
 	fi
 }
 
