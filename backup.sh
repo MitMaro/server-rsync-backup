@@ -489,7 +489,8 @@ function run_remote_script() {
 		)"
 		status=$?
 		set -e
-		if [[ -n $status ]]; then
+
+		if [[ "$status" != "0" ]]; then
 			warning "SSH connection to $(highlight "$ssh_connect") failed to run remote script."
 			message "Script Out: $remote_script_out"
 			exit $status
